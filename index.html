@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pocha Score – Apuntador (v2)</title>
+  <style>
+    body{ font-family: Arial, sans-serif; margin:0; background:#111; color:#eee; }
+    header{ background:#222; padding:10px; }
+    header h1{ margin:0; font-size:20px }
+    .hidden{ display:none }
+    .wrap{ max-width:1000px; margin:auto; padding:10px }
+    .btn{ padding:6px 10px; margin:4px; cursor:pointer; border-radius:6px; border:1px solid #444; background:#333; color:#fff }
+    table{ border-collapse: collapse; width:100%; margin-top:10px }
+    th,td{ border:1px solid #444; padding:6px; text-align:center }
+    .ok{ color:#0f0; font-weight:bold }
+    .bad{ color:#f55; font-weight:bold }
+    .note{ font-size:12px; color:#aaa }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>🂡 Pocha Score v2</h1>
+      <button class="btn" onclick="showTab('setup')">⚙️ Configurar</button>
+      <button class="btn" onclick="showTab('game')">🃏 Mano</button>
+      <button class="btn" onclick="showTab('table')">📊 Tabla</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Configuración -->
+    <section id="tab-setup">
+      <h2>1) Nueva partida</h2>
+      <p>Jugadores (mínimo 3, máximo 8):</p>
+      <div id="players"></div>
+      <button class="btn" onclick="addPlayer()">➕ Añadir jugador</button>
+      <p>Baraja: <input id="deckSize" type="number" value="40"></p>
+      <p>Pocha a partir de: <input id="pochaFrom" type="number" value="4"></p>
+      <p>Penalización renuncio: <input id="renuncioPenalty" type="number" value="-50"></p>
+      <button class="btn" onclick="createMatch()">🚀 Empezar partida</button>
+    </section>
+
+    <!-- Mano -->
+    <section id="tab-game" class="hidden">
+      <h2>2) Mano actual</h2>
+      <div id="game"></div>
+      <button class="btn" onclick="confirmHand()">✅ Confirmar mano</button>
+    </section>
+
+    <!-- Tabla -->
+    <section id="tab-table" class="hidden">
+      <h2>3) Tabla</h2>
+      <div id="score"></div>
+    </section>
+  </main>
+
+<script>
+let STATE={ players:[], format:[], dealerIndex:0, handIndex:0, hands:[], options:{deckSize:40,pochaFrom:4,renuncioPenalty:-50} };
+
+function showTab(id){ document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden')); document.getElementById('tab-'+id).classList.remove('hidden'); if(id==='game') renderGame(); if(id==='table') renderTable(); }
+
+function addPlayer(){ if(STATE.players.length>=8){alert("Máximo 8 jugadores");return;} STATE.players.push("Jugador "+(STATE.players.length+1)); renderPlayers(); }
+function renderPlayers(){ let d=document.getElementById('players'); d.innerHTML=""; STATE.players.forEach((p,i)=>{ d.innerHTML+=`<p>#${i+1} <input value="${p}" oninput="STATE.players[${i}]=this.value"> <button onclick="removePlayer(${i})">❌</button></p>`; }); }
+function removePlayer(i){ STATE.players.splice(i,1); renderPlayers(); }
+
+function createMatch(){ if(STATE.players.length<3){alert("Mínimo 3 jugadores");return;} STATE.options.deckSize=parseInt(document.getElementById('deckSize').value); STATE.options.pochaFrom=parseInt(document.getElementById('pochaFrom').value); STATE.options.renuncioPenalty=parseInt(document.getElementById('renuncioPenalty').value); let max=Math.floor(STATE.options.deckSize/STATE.players.length); STATE.format=[]; for(let i=1;i<=max;i++)STATE.format.push(i); for(let i=max-1;i>=1;i--)STATE.format.push(i); STATE.dealerIndex=0; STATE.handIndex=0; STATE.hands=[]; showTab('game'); }
+
+function renderGame(){ let cards=STATE.format[STATE.handIndex]; let dealer=STATE.players[STATE.dealerIndex]; let hand=STATE.hands[STATE.handIndex]||{bids:Array(STATE.players.length).fill(0),tricks:Array(STATE.players.length).fill(0)}; STATE.hands[STATE.handIndex]=hand; let html=`<p>Cartas: <b>${cards}</b> | Reparte: <b>${dealer}</b></p><table><tr><th>Jugador</th><th>Apuesta</th><th>Hechas</th></tr>`; let order=Array.from({length:STATE.players.length},(_,k)=>(STATE.dealerIndex+1+k)%STATE.players.length); order.forEach((pi,pos)=>{ let name=STATE.players[pi]; let sumPrev=order.slice(0,pos).map(j=>hand.bids[j]||0).reduce((a,b)=>a+b,0); let allowed=[]; for(let i=0;i<=cards;i++)allowed.push(i); if(pi===STATE.dealerIndex){ let forbidden=cards-sumPrev; allowed=allowed.filter(x=>x!==forbidden); if(cards===1 && sumPrev===1) allowed=allowed.filter(x=>x!==0); } html+=`<tr><td>${name}${pi===STATE.dealerIndex?" (Reparte)":""}</td><td><select onchange="hand.bids[${pi}]=parseInt(this.value)">${allowed.map(v=>`<option ${v===hand.bids[pi]?"selected":""}>${v}</option>`).join("")}</select></td><td><input type="number" min=0 max=${cards} value="${hand.tricks[pi]}" oninput="hand.tricks[${pi}]=parseInt(this.value)"></td></tr>`; }); html+="</table>"; document.getElementById('game').innerHTML=html; }
+
+function confirmHand(){ let h=STATE.hands[STATE.handIndex]; let cards=STATE.format[STATE.handIndex]; if(h.tricks.reduce((a,b)=>a+b,0)!==cards){alert("La suma de bazas no coincide");return;} h.points=[]; STATE.players.forEach((p,i)=>{ if(h.bids[i]===h.tricks[i]){ h.points[i]=10+5*h.bids[i]; if(h.bids[i]===cards && cards>=STATE.options.pochaFrom)h.points[i]*=2; } else { h.points[i]=-5*Math.abs(h.bids[i]-h.tricks[i]); } }); STATE.handIndex++; STATE.dealerIndex=(STATE.dealerIndex+1)%STATE.players.length; if(STATE.handIndex>=STATE.format.length){alert("Partida finalizada");} showTab('table'); }
+
+function renderTable(){ let html="<table><tr><th>#</th><th>Cartas</th>"+STATE.players.map(p=>"<th>"+p+"</th>").join("")+"</tr>"; STATE.hands.forEach((h,i)=>{ html+="<tr><td>"+(i+1)+"</td><td>"+STATE.format[i]+"</td>"+STATE.players.map((p,j)=>"<td class='"+(h.points[j]>=0?"ok":"bad")+"'>"+h.points[j]+"</td>").join("")+"</tr>"; }); let totals=Array(STATE.players.length).fill(0); STATE.hands.forEach(h=>{ h.points.forEach((p,i)=>totals[i]+=p); }); html+="<tr><td colspan=2><b>TOTAL</b></td>"+totals.map(t=>"<td>"+t+"</td>").join("")+"</tr></table>"; document.getElementById('score').innerHTML=html; }
+</script>
+
+<footer class="wrap">
+  <p class="note">Regla del postre: el <b>repartidor</b> es siempre el último en apostar y no puede cuadrar la suma. En la mano de 1, si alguien pidió 1, el repartidor no puede pedir 0.</p>
+</footer>
+</body>
+</html>
