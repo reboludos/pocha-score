@@ -66,16 +66,43 @@ function removePlayer(i){ STATE.players.splice(i,1); renderPlayers(); }
 
 function createMatch(){ if(STATE.players.length<3){alert("Mínimo 3 jugadores");return;} STATE.options.deckSize=parseInt(document.getElementById('deckSize').value); STATE.options.pochaFrom=parseInt(document.getElementById('pochaFrom').value); STATE.options.renuncioPenalty=parseInt(document.getElementById('renuncioPenalty').value); let max=Math.floor(STATE.options.deckSize/STATE.players.length); STATE.format=[]; for(let i=1;i<=max;i++)STATE.format.push(i); for(let i=max-1;i>=1;i--)STATE.format.push(i); STATE.dealerIndex=0; STATE.handIndex=0; STATE.hands=[]; showTab('game'); }
 
-function renderGame(){ let cards=STATE.format[STATE.handIndex]; let dealer=STATE.players[STATE.dealerIndex]; let hand=STATE.hands[STATE.handIndex]||{bids:Array(STATE.players.length).fill(0),tricks:Array(STATE.players.length).fill(0)}; STATE.hands[STATE.handIndex]=hand; let html=`<p>Cartas: <b>${cards}</b> | Reparte: <b>${dealer}</b></p><table><tr><th>Jugador</th><th>Apuesta</th><th>Hechas</th></tr>`; let order=Array.from({length:STATE.players.length},(_,k)=>(STATE.dealerIndex+1+k)%STATE.players.length); order.forEach((pi,pos)=>{ let name=STATE.players[pi]; let sumPrev=order.slice(0,pos).map(j=>hand.bids[j]||0).reduce((a,b)=>a+b,0); let allowed=[]; for(let i=0;i<=cards;i++)allowed.push(i); if (pi === STATE.dealerIndex) {
-  let forbidden = cards - sumPrev;
-  allowed = allowed.filter(x => x !== forbidden);
+function renderGame(){ let cards=STATE.format[STATE.handIndex]; let dealer=STATE.players[STATE.dealerIndex]; let hand=STATE.hands[STATE.handIndex]||{bids:Array(STATE.players.length).fill(0),tricks:Array(STATE.players.length).fill(0)}; STATE.hands[STATE.handIndex]=hand; let html=`<p>Cartas: <b>${cards}</b> | Reparte: <b>${dealer}</b></p><table><tr><th>Jugador</th><th>Apuesta</th><th>Hechas</th></tr>`; let order=Array.from({length:STATE.players.length},(_,k)=>(STATE.dealerIndex+1+k)%STATE.players.length); order.forEach((pi,pos)=>{
+  let name = STATE.players[pi];
 
-  // Corrección especial para la mano de 1
-  if (cards === 1 && sumPrev === 1) {
-    allowed = [1]; // único valor posible
+  // suma de apuestas previas (forzamos Number)
+  let sumPrev = order.slice(0,pos).map(j => Number(hand.bids[j] || 0)).reduce((a,b)=>a+b,0);
+
+  // opciones iniciales
+  let allowed = [];
+  for (let i=0; i<=cards; i++) allowed.push(i);
+
+  // regla del postre (último en apostar = repartidor)
+  if (pi === STATE.dealerIndex) {
+    let forbidden = cards - sumPrev;
+    allowed = allowed.filter(x => x !== forbidden);
+
+    // caso especial: mano de 1 y ya alguien pidió 1 → repartidor sólo puede 1
+    if (cards === 1 && sumPrev === 1) {
+      allowed = [1];
+    }
   }
-}
- html+=`<tr><td>${name}${pi===STATE.dealerIndex?" (Reparte)":""}</td><td><select onchange="hand.bids[${pi}]=parseInt(this.value)">${allowed.map(v=>`<option ${v===hand.bids[pi]?"selected":""}>${v}</option>`).join("")}</select></td><td><input type="number" min=0 max=${cards} value="${hand.tricks[pi]}" oninput="hand.tricks[${pi}]=parseInt(this.value)"></td></tr>`; }); html+="</table>"; document.getElementById('game').innerHTML=html; }
+
+  // nunca dejarlo vacío
+  if (!allowed.length) allowed = [0];
+
+  // construir opciones del desplegable con value numérico
+  let opts = allowed.map(v =>
+    `<option value="${v}" ${Number(hand.bids[pi]||0)===v ? "selected" : ""}>${v}</option>`
+  ).join("");
+
+  // fila de la tabla
+  html += `<tr>
+    <td>${name}${pi===STATE.dealerIndex?" (Reparte)":""}</td>
+    <td><select onchange="hand.bids[${pi}]=parseInt(this.value,10); renderGame();">${opts}</select></td>
+    <td><input type="number" min="0" max="${cards}" value="${hand.tricks[pi]||0}" oninput="hand.tricks[${pi}]=parseInt(this.value||0,10)"></td>
+  </tr>`;
+});
+ document.getElementById('game').innerHTML=html; }
 
 function confirmHand(){ let h=STATE.hands[STATE.handIndex]; let cards=STATE.format[STATE.handIndex]; if(h.tricks.reduce((a,b)=>a+b,0)!==cards){alert("La suma de bazas no coincide");return;} h.points=[]; STATE.players.forEach((p,i)=>{ if(h.bids[i]===h.tricks[i]){ h.points[i]=10+5*h.bids[i]; if(h.bids[i]===cards && cards>=STATE.options.pochaFrom)h.points[i]*=2; } else { h.points[i]=-5*Math.abs(h.bids[i]-h.tricks[i]); } }); STATE.handIndex++; STATE.dealerIndex=(STATE.dealerIndex+1)%STATE.players.length; if(STATE.handIndex>=STATE.format.length){alert("Partida finalizada");} showTab('table'); }
 
