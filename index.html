@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pocha Score – Apuntador (v2)</title>
+  <title>Pocha Score – Apuntador (v4)</title>
   <style>
     body{ font-family: Arial, sans-serif; margin:0; background:#111; color:#eee; }
     header{ background:#222; padding:10px; }
@@ -21,7 +21,7 @@
 <body>
   <header>
     <div class="wrap">
-      <h1>🂡 Pocha Score v2</h1>
+      <h1>🂡 Pocha Score v4</h1>
       <button class="btn" onclick="showTab('setup')">⚙️ Configurar</button>
       <button class="btn" onclick="showTab('game')">🃏 Mano</button>
       <button class="btn" onclick="showTab('table')">📊 Tabla</button>
@@ -122,14 +122,17 @@ function renderGame() {
 
     if (pi === STATE.dealerIndex) {
       let forbidden = cards - sumPrev;
-      allowed = allowed.filter(x => x !== forbidden);
 
-      if (cards === 1 && sumPrev === 1) {
-        allowed = [1];
+      if (cards === 1) {
+        if (sumPrev === 1) {
+          allowed = [1]; // alguien ya pidió 1 → repartidor obligado a 1
+        } else {
+          allowed = [0,1].filter(x => x !== forbidden); // puede pedir 0 o 1 salvo cuadrar
+        }
+      } else {
+        allowed = allowed.filter(x => x !== forbidden);
       }
     }
-
-    if (!allowed.length) allowed = [0];
 
     let opts = allowed.map(v =>
       `<option value="${v}" ${Number(hand.bids[pi]||0)===v ? "selected" : ""}>${v}</option>`
